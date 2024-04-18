@@ -1,0 +1,6 @@
+name: pulumi-template
+runtime:
+  name : go
+  options:
+    binary: bin/ptemplate
+description: A minimal Go Pulumi program

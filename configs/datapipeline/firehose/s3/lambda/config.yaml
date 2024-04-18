@@ -1,0 +1,140 @@
+env: development
+cloud: aws
+template:
+  name: data-pipeline
+  instructions:
+    - "configureIAM"
+    - "createStorage"
+    - "createStream"
+    - "createFunction"
+function:
+  name: "ptemplate-lambda"
+  auth: "AWS_IAM"
+  build:
+    handler: "index.handler"
+    runtime: "nodejs18.x"
+    source:
+      zip: "functions/aws/firehoseproducer"
+      output_path: "assets/lambda/function.zip"
+iam:
+  roles:
+    - name: "api_gateway_kinesis_proxy_policy_pulumi-s3-lambda"
+      assume_policy: >
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": [
+                            "apigateway.amazonaws.com",
+                            "firehose.amazonaws.com"
+                        ]
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+      inline_policy: |
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:DescribeLogGroups",
+                        "logs:DescribeLogStreams",
+                        "logs:PutLogEvents",
+                        "logs:GetLogEvents",
+                        "logs:FilterLogEvents",
+                        "firehose:*"
+                    ],
+                    "Effect": "Allow",
+                    "Resource": "*"
+                }
+            ]
+        }
+    - name: "kinesis_firehose_service_role-s3-lambda"
+      assume_policy: >
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": [
+                          "apigateway.amazonaws.com",
+                          "firehose.amazonaws.com"
+                        ]
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+      inline_policy: |
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Action": [
+                        "s3:*",
+                        "firehose:*"
+                    ],
+                    "Effect": "Allow",
+                    "Resource": "*"
+                }
+            ]
+        }
+    - name: "lambda_firehose_service_role-s3-lambda"
+      assume_policy: >
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": [
+                          "lambda.amazonaws.com",
+                          "firehose.amazonaws.com"
+                        ]
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+      inline_policy: |
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Action": [
+                        "lambda:*",
+                        "firehose:*",
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:DescribeLogGroups",
+                        "logs:DescribeLogStreams",
+                        "logs:PutLogEvents",
+                        "logs:GetLogEvents",
+                        "logs:FilterLogEvents"
+                    ],
+                    "Effect": "Allow",
+                    "Resource": "*"
+                }
+            ]
+        }
+storage:
+    name: "ptemplate-datapipeline-storage-lambda"
+    force_destroy: true
+stream:
+    name:  "ptemplate-datapipeline-stream-lambda"
+    destination: s3
+    s3Config:
+      buffering_size: 5
+      buffering_interval: 0
+      partition_enabled: false
+      #s3_prefix: "games/game_name=!{partitionKeyFromQuery:game_name}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/"

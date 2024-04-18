@@ -1,0 +1,183 @@
+env: development
+cloud: aws
+template:
+  name: data-pipeline
+  instructions:
+    - "configureIAM"
+    - "createStorage"
+    - "createStream"
+    - "createIdentityManagement"
+    - "createApiGateway"
+iam:
+  roles:
+    - name: "api_gateway_kinesis_proxy_policy_pulumi-s3"
+      assume_policy: >
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": [
+                            "apigateway.amazonaws.com",
+                            "firehose.amazonaws.com"
+                        ]
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+      inline_policy: |
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:DescribeLogGroups",
+                        "logs:DescribeLogStreams",
+                        "logs:PutLogEvents",
+                        "logs:GetLogEvents",
+                        "logs:FilterLogEvents",
+                        "firehose:*"
+                    ],
+                    "Effect": "Allow",
+                    "Resource": "*"
+                }
+            ]
+        }
+    - name: "kinesis_firehose_service_role-s3"
+      assume_policy: >
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": [
+                          "apigateway.amazonaws.com",
+                          "firehose.amazonaws.com"
+                        ]
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+      inline_policy: |
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Action": [
+                        "s3:*",
+                        "firehose:*"
+                    ],
+                    "Effect": "Allow",
+                    "Resource": "*"
+                }
+            ]
+        }
+storage:
+    name: "ptemplate-datapipeline-storage"
+    force_destroy: true
+stream:
+    name:  "ptemplate-datapipeline-stream"
+    destination: s3
+    s3Config:
+      buffering_size: 5
+      buffering_interval: 0
+      partition_enabled: false
+      s3_prefix: "games/game_name=!{partitionKeyFromQuery:game_name}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/"
+api_gateway:
+    name: "ptemplate-datapipeline-kinesis-proxy"
+    stage: "dev"
+    deployment_id: 0
+    routes:
+      - name: "streams"
+        state: "dev"
+        integrations:
+            - name: "integration"
+              type: "AWS"
+              http_method: "POST"
+              uri: "arn:aws:apigateway:eu-central-1:firehose:action/PutRecord"
+              method:
+                  name: "post"
+                  type: "POST"
+                  auth: "COGNITO_USER_POOLS"
+                  response:
+                      status_code: "200"
+              req_params:
+                - key:  "integration.request.header.Content-Type"
+                  val:  "'application/x-amz-json-1.1'"
+              req_template:
+                - key: "application/json"
+                  val:  |
+                    #set($payload = "$input.json('$')")
+                    {
+                      "DeliveryStreamName": "ptemplate-datapipeline-stream",
+                      "Record": { "Data": "$util.base64Encode($payload)" }
+                    }
+              res_template:
+                - key: "application/json"
+                  val: |
+                    #set($inputRoot = $input.path('$'))
+                    { message:   "success!" }
+
+            - name: "optionsIntegration"
+              type: "MOCK"
+              http_method: "OPTIONS"
+              method:
+                name: "options"
+                type: "OPTIONS"
+                auth: "NONE"
+                response:
+                    status_code: "200"
+                    response_params:
+                      - key: "method.response.header.Access-Control-Allow-Headers"
+                        val: true
+                      - key: "method.response.header.Access-Control-Allow-Methods"
+                        val: true
+                      - key: "method.response.header.Access-Control-Allow-Origin"
+                        val: true
+              res_template:
+                - key: "application/json"
+                  val: | 
+                    ""
+              res_params:
+                - key: "method.response.header.Access-Control-Allow-Headers"
+                  val: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+                - key: "method.response.header.Access-Control-Allow-Methods"
+                  val: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+                - key: "method.response.header.Access-Control-Allow-Origin"
+                  val: "'*'"
+              req_template:
+                - key:  "application/json"
+                  val: |
+                    "{statusCode": 200}"
+
+authorizer:
+  user_pool:
+    name: "user-pool"
+    user_client:
+      name: "user-client"
+      callback_urls:
+        - https://localhost:3000/
+      ex_auth_flows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      allowed_flows:
+        - implicit
+      allowed_scopes:
+        - email
+        - openid
+        - phone
+        - profile
+        - aws.cognito.signin.user.admin
+    user_domain:
+      name: "ptemplateauth"
+  name: "ptemplate-authorizer"
+  type: "COGNITO_USER_POOLS"

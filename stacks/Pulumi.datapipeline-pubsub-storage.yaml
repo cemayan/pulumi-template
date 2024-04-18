@@ -1,0 +1,4 @@
+config:
+  config:path: configs/datapipeline/pubsub/storage/config.yaml
+  gcp:project: pulumitemplate
+  gcp:region: europe-west3

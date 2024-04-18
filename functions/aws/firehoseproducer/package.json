@@ -1,0 +1,18 @@
+{
+  "name": "pulumi-template",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cemayan/pulumi-template.git"
+  },
+  "private": true,
+  "devDependencies": {
+    "aws-sdk": "^2.1608.0",
+    "aws-xray-sdk": "^3.6.0"
+  }
+}

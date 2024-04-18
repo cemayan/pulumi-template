@@ -1,0 +1,62 @@
+env: development
+cloud: gcp
+template:
+  name: data-pipeline
+  instructions:
+    - "createStorage"
+    - "createStream"
+    - "createFunction"
+    - "configureIAM"
+iam:
+ service_acc:
+   account_id: "ptemplate-svc-acc-storage"
+   display_name: "Ptemplate Service Account"
+   project: "pulumitemplate"
+   role: "roles/owner"
+ roles:
+   - name: "roles/storage.admin-storage"
+     role: "roles/storage.admin"
+     type: "bucketmember"
+     member: "serviceAccount:service-%v@gcp-sa-pubsub.iam.gserviceaccount.com"
+   - name: "roles/cloudfunctions.invoker-storage"
+     role: "roles/cloudfunctions.invoker"
+     type: "cloudfuncv2member"
+   - name: "roles/pubsub.publisher-storage"
+     role: "roles/pubsub.publisher"
+     type: "pubsubmember"
+   - name: "roles/run.invoker-storage"
+     role: "roles/run.invoker"
+     type: "cloudrunbinding"
+storage:
+  name: "ptemplate-bucket-storage"
+  location: "europe-west3"
+  force_destroy: true
+stream:
+  destination: cloudstorage
+  pubsub_conf:
+    topic:
+      name: "events-topic-storage"
+    subscription:
+      name: "subscription-storage"
+      cloud_storage_conf:
+        name: "storage_sub_conf"
+        duration: "60s"
+function:
+  name: ptemplate-proxy-storage
+  region: "europe-west3"
+  build:
+    runtime: "go122"
+    entry_point: "PubsubProducer"
+    source:
+      storage:
+        force_destroy: true
+        location: "europe-west3"
+        bucket:
+          name: "ptemplate-gcf-source-storage"
+          object:
+            path: "/Users/cayan/Desktop/workspace/pulumi-template/assets/cloudfunction/function.zip"
+            name: "function.zip"
+  service_conf:
+    max_instance: 1
+    available_mem: "256M"
+    timeout: 60

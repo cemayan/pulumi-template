@@ -1,0 +1,265 @@
+env: development
+cloud: aws
+template:
+  name: data-pipeline
+  instructions:
+    - "configureIAM"
+    - "createStorage"
+    - "createDWH"
+    - "createStream"
+    - "createIdentityManagement"
+    - "createApiGateway"
+iam:
+    roles:
+      - name: "api_gateway_kinesis_proxy_policy_pulumi-redshift"
+        assume_policy: >
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [
+                                "apigateway.amazonaws.com",
+                                "firehose.amazonaws.com"
+                            ]
+                        },
+                        "Action": "sts:AssumeRole"
+                    }
+                ]
+            }
+        inline_policy: |
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Action": [
+                            "logs:CreateLogGroup",
+                            "logs:CreateLogStream",
+                            "logs:DescribeLogGroups",
+                            "logs:DescribeLogStreams",
+                            "logs:PutLogEvents",
+                            "logs:GetLogEvents",
+                            "logs:FilterLogEvents",
+                            "firehose:*"
+                        ],
+                        "Effect": "Allow",
+                        "Resource": "*"
+                    }
+                ]
+            }
+      - name: "kinesis_firehose_service_role-redshift"
+        assume_policy: >
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [
+                               "redshift.amazonaws.com",
+                               "redshift-serverless.amazonaws.com",
+                              "apigateway.amazonaws.com",
+                              "firehose.amazonaws.com"
+                            ]
+                        },
+                        "Action": "sts:AssumeRole"
+                    }
+                ]
+            }
+        inline_policy: |
+                      {
+                          "Version": "2012-10-17",
+                          "Statement": [
+                              {
+                                  "Action": [
+                                     "logs:CreateLogGroup",
+                                      "logs:CreateLogStream",
+                                      "logs:DescribeLogGroups",
+                                      "logs:DescribeLogStreams",
+                                      "logs:PutLogEvents",
+                                      "logs:GetLogEvents",
+                                      "logs:FilterLogEvents",
+                                      "s3:*",
+                                      "firehose:*"
+                                  ],
+                                  "Effect": "Allow",
+                                  "Resource": "*"
+                              }
+                          ]
+                      }
+      - name: "redshift_service_role"
+        assume_policy: >
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [
+                            "sagemaker.amazonaws.com",
+                            "redshift.amazonaws.com",
+                            "redshift-serverless.amazonaws.com"
+                            ]
+                        },
+                        "Action": "sts:AssumeRole"
+                    }
+                ]
+            }
+        inline_policy: |
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Action": [
+                              "redshift:*",
+                              "redshift-serverless:*",
+                              "ec2:DescribeAccountAttributes",
+                              "ec2:DescribeAddresses",
+                              "ec2:DescribeAvailabilityZones",
+                              "ec2:DescribeSecurityGroups",
+                              "ec2:DescribeSubnets",
+                              "ec2:DescribeVpcs",
+                              "ec2:DescribeInternetGateways",
+                              "sns:CreateTopic",
+                              "sns:Get*",
+                              "sns:List*",
+                              "cloudwatch:Describe*",
+                              "cloudwatch:Get*",
+                              "cloudwatch:List*",
+                              "cloudwatch:PutMetricAlarm",
+                              "cloudwatch:EnableAlarmActions",
+                              "cloudwatch:DisableAlarmActions",
+                              "tag:GetResources",
+                              "tag:UntagResources",
+                              "tag:GetTagValues",
+                              "tag:GetTagKeys",
+                              "tag:TagResources",
+                              "s3:*"
+                        ],
+                        "Effect": "Allow",
+                        "Resource": "*"
+                    }
+                ]
+            }
+storage:
+    name: "ptemplate-datapipeline-storage-redshift"
+    force_destroy: true
+dwh:
+  redshift:
+    identifier: "ptemplate-datapipeline-cluster"
+    db_name: "ptemplatedb"
+    master_user: "master"
+    master_pass: "Verysecretpass1!!"
+    node_type: "dc2.large"
+    number_of_nodes: 1
+    cluster_type: "single-node"
+    skip_snapshot: true
+    public_access: true
+    sql: |
+      drop table if exists events;	
+      CREATE TABLE public.events(game_name varchar(100),event_name varchar(100),event_data SUPER);
+stream:
+    name:  "ptemplate-datapipeline-stream-redshift"
+    destination: redshift
+    redshift_conf:
+      username: "master"
+      password: "Verysecretpass1!!"
+      copy_options: "FORMAT JSON 'auto'"
+      data_table_name: "events"
+api_gateway:
+    name: "ptemplate-datapipeline-kinesis-proxy-redshift"
+    stage: "dev"
+    deployment_id: 2
+    routes:
+      - name: "streams"
+        state: "dev"
+        integrations:
+            - name: "integration"
+              type: "AWS"
+              http_method: "POST"
+              uri: "arn:aws:apigateway:eu-central-1:firehose:action/PutRecord"
+              method:
+                  name: "post"
+                  type: "POST"
+                  auth: "COGNITO_USER_POOLS"
+                  response:
+                      status_code: "200"
+              req_params:
+                - key:  "integration.request.header.Content-Type"
+                  val:  "'application/x-amz-json-1.1'"
+              req_template:
+                - key: "application/json"
+                  val:  |
+                    #set($payload = "$input.json('$')")
+                    {
+                      "DeliveryStreamName": "ptemplate-datapipeline-stream-redshift",
+                      "Record": { "Data": "$util.base64Encode($payload)" }
+                    }
+              res_template:
+                - key: "application/json"
+                  val: |
+                    #set($inputRoot = $input.path('$'))
+                    { message:   "success!" }
+
+            - name: "optionsIntegration"
+              type: "MOCK"
+              http_method: "OPTIONS"
+              method:
+                name: "options"
+                type: "OPTIONS"
+                auth: "NONE"
+                response:
+                    status_code: "200"
+                    response_params:
+                      - key: "method.response.header.Access-Control-Allow-Headers"
+                        val: true
+                      - key: "method.response.header.Access-Control-Allow-Methods"
+                        val: true
+                      - key: "method.response.header.Access-Control-Allow-Origin"
+                        val: true
+              res_template:
+                - key: "application/json"
+                  val: | 
+                    ""
+              res_params:
+                - key: "method.response.header.Access-Control-Allow-Headers"
+                  val: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+                - key: "method.response.header.Access-Control-Allow-Methods"
+                  val: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
+                - key: "method.response.header.Access-Control-Allow-Origin"
+                  val: "'*'"
+              req_template:
+                - key:  "application/json"
+                  val: |
+                    "{statusCode": 200}"
+
+authorizer:
+  user_pool:
+    name: "user-pool-redshift"
+    user:
+      username: "cemayan"
+    user_client:
+      name: "user-client-redshift"
+      callback_urls:
+        - https://localhost:3000/
+        - https://localhost:3000
+      ex_auth_flows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      allowed_flows:
+        - implicit
+      allowed_scopes:
+        - email
+        - openid
+        - phone
+        - profile
+        - aws.cognito.signin.user.admin
+    user_domain:
+      name: "ptemplateauthredshift"
+  name: "ptemplate-authorizer-redshift"
+  type: "COGNITO_USER_POOLS"

@@ -1,0 +1,4 @@
+config:
+  config:path: configs/datapipeline/firehose/redshift/apigateway/config.yaml
+  config:userpass:
+    secure: AAABAFux+KTBrbjixWGKeV9yxCh6txJasdVZxV1+QpPYuajR3b7Jb7efsVI=

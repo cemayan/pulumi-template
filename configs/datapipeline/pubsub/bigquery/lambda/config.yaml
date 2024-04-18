@@ -1,0 +1,97 @@
+env: development
+cloud: gcp
+template:
+  name: data-pipeline
+  instructions:
+    - "createStorage"
+    - "createDWH"
+    - "createStream"
+    - "createFunction"
+    - "configureIAM"
+iam:
+ service_acc:
+   account_id: "ptemplate-svc-acc"
+   display_name: "Ptemplate Service Account"
+   project: "pulumitemplate"
+   role: "roles/owner"
+ roles:
+   - name: "roles/storage.admin"
+     role: "roles/storage.admin"
+     type: "bucketmember"
+     member: "serviceAccount:service-%v@gcp-sa-pubsub.iam.gserviceaccount.com"
+   - name: "roles/bigquery.metadataViewer"
+     role: "roles/bigquery.metadataViewer"
+     type: "projectmember"
+     member: "serviceAccount:service-%v@gcp-sa-pubsub.iam.gserviceaccount.com"
+   - name: "roles/bigquery.dataEditor"
+     role: "roles/bigquery.dataEditor"
+     type: "projectmember"
+     member: "serviceAccount:service-%v@gcp-sa-pubsub.iam.gserviceaccount.com"
+   - name: "roles/cloudfunctions.invoker"
+     role: "roles/cloudfunctions.invoker"
+     type: "cloudfuncv2member"
+     member: "serviceAccount:service-%v@gcp-sa-pubsub.iam.gserviceaccount.com"
+   - name: "roles/pubsub.publisher"
+     role: "roles/pubsub.publisher"
+     type: "pubsubmember"
+     member: "serviceAccount:service-%v@gcp-sa-pubsub.iam.gserviceaccount.com"
+   - name: "roles/run.invoker"
+     role: "roles/run.invoker"
+     type: "cloudrunbinding"
+     member: "serviceAccount:service-%v@gcp-sa-pubsub.iam.gserviceaccount.com"
+storage:
+  name: "ptemplate-bucket"
+  location: "europe-west3"
+  force_destroy: true
+dwh:
+  bq:
+    dataset: "ptemplate_dataset"
+    table_id: "ptemplate_events"
+    delete_protection: false
+    schema: |
+      [
+        {
+          "name": "game_name",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "event_name",
+          "type": "STRING",
+          "mode": "NULLABLE"
+        },
+        {
+          "name": "event_data",
+          "type": "JSON",
+          "mode": "NULLABLE"
+        }
+      ]
+stream:
+  destination: bigquery
+  pubsub_conf:
+    topic:
+      name: "events_topic"
+    subscription:
+      name: "subscription"
+      cloud_storage_conf:
+        name: "storage_sub_conf"
+function:
+  name: ptemplate-proxy
+  region: "europe-west3"
+  build:
+    runtime: "go122"
+    entry_point: "PubsubProducer"
+    docker_repo: ""
+    source:
+      storage:
+        force_destroy: true
+        location: "europe-west3"
+        bucket:
+          name: "ptemplate-gcf-source"
+          object:
+            path: "/Users/cayan/Desktop/workspace/pulumi-template/assets/cloudfunction/function.zip"
+            name: "function.zip"
+  service_conf:
+    max_instance: 1
+    available_mem: "256M"
+    timeout: 60

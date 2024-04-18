@@ -1,0 +1,2 @@
+config:
+  config:path: configs/datapipeline/firehose/s3/lambda/config.yaml
