@@ -34,7 +34,7 @@ function-zip:
 remove-stack:
 	pulumi stack rm  ${STACK_NAME} -f
 select-stack:
-	pulumi stack select  ${STACK_NAME}
+	pulumi stack select  ${STACK_NAME} -c
 set-config:
 	pulumi config set --path 'config:path' ${CONFIG_PATH} -s ${STACK_NAME}
 set-userpass:
@@ -44,6 +44,8 @@ set-gcp:
 	pulumi config set functions/region  ${GCP_REGION}
 up: infra-build
 	pulumi up -s ${STACK_NAME} --config-file  ${CONFIG_FILE}
+upy: infra-build
+	pulumi up -s ${STACK_NAME} --config-file  ${CONFIG_FILE} --yes
 destroy: infra-build
 	pulumi destroy -s ${STACK_NAME}
 delete-state:

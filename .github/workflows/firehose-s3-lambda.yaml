@@ -1,0 +1,38 @@
+name: Pulumi
+on:
+  push:
+    branches:
+      - firehose-s3-lambda
+jobs:
+  update:
+    name: Update
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 'stable'
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Install dependencies
+        run: |
+          curl -fsSL https://get.pulumi.com | sh
+      - name: Go dependencies download
+        run: |
+          go mod download
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      - name: Select
+        run: |
+          make select-stack  stack=datapipeline-firehose-s3-lambda
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      - name: Up
+        run: |
+         make upy  stack=datapipeline-firehose-s3-lambda
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
