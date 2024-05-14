@@ -263,7 +263,8 @@ func (g *Gcp) generateSpecFile() error {
 
 	yamlFile, _ := yaml.Marshal(&spec)
 
-	err := os.WriteFile("api/gcp/api.yaml", yamlFile, 0644)
+	err := os.MkdirAll("api/gcp", 0700)
+	err = os.WriteFile("api/gcp/api.yaml", yamlFile, 0644)
 	return err
 }
 

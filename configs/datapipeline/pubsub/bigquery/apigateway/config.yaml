@@ -3,7 +3,6 @@ cloud: gcp
 template:
   name: data-pipeline
   instructions:
-    - "createStorage"
     - "createDWH"
     - "createStream"
     - "createFunction"
@@ -16,10 +15,6 @@ iam:
    project: "pulumitemplate"
    role: "roles/owner"
  roles:
-   - name: "roles/storage.admin"
-     role: "roles/storage.admin"
-     type: "bucketmember"
-     member: "serviceAccount:service-%v@gcp-sa-pubsub.iam.gserviceaccount.com"
    - name: "roles/bigquery.metadataViewer"
      role: "roles/bigquery.metadataViewer"
      type: "projectmember"
