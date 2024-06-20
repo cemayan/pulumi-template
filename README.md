@@ -21,6 +21,9 @@ api_gateway:
 You can found the example template [here](configs/datapipeline/firehose/s3/lambda/config.yaml)
 
 
+You can read the related posts
+- [AWS](https://cemayan.com/posts/datapipeline-on-aws-with-pulumi)
+- [GCP](https://cemayan.com/posts/datapipeline-on-gcp-with-pulumi)
 
 
 ## Usage
@@ -50,7 +53,7 @@ make function-zip
 **Pulumi up**:
 
 ```bash
-make up stack=datapipeline-firehose-s3-lambda
+make up stack=datapipeline-firehose-redshift-apigateway
 ```
 
 > This command output gives confirmation prompt you need to press **ENTER**. It will be created a stack according to given stack.After that **pulumi up** command will be executed.
@@ -59,14 +62,15 @@ make up stack=datapipeline-firehose-s3-lambda
 - datapipeline-firehose-s3-lambda
 - datapipeline-firehose-s3-apigateway
 - datapipeline-firehose-redshift-apigateway
-- datapipeline-pubsub-bigquery
+- datapipeline-pubsub-bigquery-apigateway
+- datapipeline-pubsub-bigquery-lambda
 - datapipeline-pubsub-storage
 
 ---
 **Pulumi destroy:**
 
 ```bash
-make destroy stack=datapipeline-firehose-s3-lamdda
+make destroy stack=datapipeline-firehose-redshift-apigateway
 ```
 
 --- 
@@ -76,13 +80,19 @@ make destroy stack=datapipeline-firehose-s3-lamdda
 **Payload**:
 ```json
 {
-    "game_name": "simulatte",
-    "event_name": "user.created",
+    "game_name": "amazing_game",
+    "event_name": "weapon.fired",
     "event_data": {
-      "foo": "bar"
+      "weapon_name": "m4a1"
     }
 }
 ```
+
+
+---
+
+
+### For internal security
 
 Since AWS IAM activated and GCP Auth enabled you need to take a token for authenticated request.
 
@@ -97,6 +107,8 @@ make gcp-token
 https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
 
 ---
+
+
 
 ## Infrastructures
 
